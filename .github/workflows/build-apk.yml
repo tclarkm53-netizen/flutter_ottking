@@ -1,0 +1,52 @@
+name: Build Production Signed APK
+
+on:
+  workflow_dispatch: # সম্পূর্ণ ম্যানুয়াল ট্রিগার, অতিরিক্ত রান প্রিভেন্ট করবে
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+
+      - name: Generate Production Signature Key (Keystore)
+        run: |
+          # রানটাইমে গিটহাব সিক্রেট থেকে সিগনেচার কিস্টোর জেনারেট করা হচ্ছে
+          keytool -genkeypair -v \
+            -keystore android/app/upload-keystore.jks \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
+            -dname "${{ secrets.KEY_DN }}"
+
+      - name: Build Minified & Signed Android APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          flutter pub get
+          # অ্যাপ সাইজ সর্বোচ্চ ছোট করা এবং আইকন ট্রিস্যাকিং এনাবল করে প্রোডাকশন বিল্ড
+          flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload Signed Production APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OTTKing-TV-Mobile-Release
+          path: build/app/outputs/flutter-apk/app-release.apk
