@@ -24,12 +24,10 @@ jobs:
 
       - name: Create Flutter Project
         run: |
-          # হাইফেন এরর এড়াতে আন্ডারস্কোর সহ ডার্ট প্যাকেজ নেম ব্যবহার
           flutter create --org com.ottking --project-name livetvapp_flutter --platforms android .
 
       - name: Configure Android Manifest (Mobile & Smart TV Support)
         run: |
-          # একদম ফ্রেশ এবং ক্লিন ম্যানিফেস্ট ফাইল ওভাররাইট করা হচ্ছে যা মার্জার এরর দেবে না
           cat <<EOF > android/app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               
@@ -87,7 +85,7 @@ jobs:
           storeFile=../app/upload-keystore.jks
           EOF
           
-          # app/build.gradle মডিফাই করে সিকিউর সাইনিং কনফিগারেশন ইনজেক্ট করা
+          # app/build.gradle মডিফাই করা (ফ্ল্যাটারের মডার্ন ভার্সন কোড পার্সিং সহ)
           cd android/app
           cat <<EOF > build.gradle
           plugins {
@@ -101,6 +99,15 @@ jobs:
           if (keystorePropertiesFile.exists()) {
               keystoreProperties.load(new java.io.FileInputStream(keystorePropertiesFile))
           }
+
+          // local.properties থেকে ভার্সন কোড ও নেম রিড করার সেফ মেথড
+          def localProperties = new Properties()
+          def localPropertiesFile = rootProject.file('local.properties')
+          if (localPropertiesFile.exists()) {
+              localProperties.load(new java.io.FileInputStream(localPropertiesFile))
+          }
+          def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+          def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
 
           android {
               namespace "com.ottking.livetvapp_flutter"
@@ -122,10 +129,10 @@ jobs:
 
               defaultConfig {
                   applicationId "com.ottking.livetvapp_flutter"
-                  minSdk 21  // গুগল টিভি এবং মডার্ন অ্যাপের জন্য মিনিমাম এসডিকে ২১ সেফ
+                  minSdk 21
                   targetSdk flutter.targetSdkVersion
-                  versionCode flutter.versionCode
-                  versionName flutter.versionName
+                  versionCode flutterVersionCode.toInteger()
+                  versionName flutterVersionName
               }
 
               signingConfigs {
@@ -140,7 +147,7 @@ jobs:
               buildTypes {
                   release {
                       signingConfig signingConfigs.release
-                      minifyEnabled true  // সাইজ ছোট করার জন্য কোড অবফাসকেশন ও স্রিঙ্কিং চালু
+                      minifyEnabled true
                       shrinkResources true
                       proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
                   }
@@ -159,7 +166,7 @@ jobs:
           
           git add .
           if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "🚀 System: Setup optimized Flutter codebase with TV configurations and signing rules"
+            git commit -m "🚀 System: Fixed Gradle version property compatibility for Flutter 3.22+"
             git push origin HEAD:${{ github.ref_name }}
           else
             echo "No changes to commit"
